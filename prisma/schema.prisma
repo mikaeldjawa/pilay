@@ -1,0 +1,1117 @@
+// Peter's Guide & Safeguard — Counseling Management System
+// Prisma schema. Field/table names map to the ERD docs (docs/Entity Relationship.md,
+// docs/ER Update — Data Model Aligned to the Real Report Templates.MD).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =========================================================================
+// Enums
+// =========================================================================
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  TRANSFERRED
+  WITHDRAWN
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  TRANSFERRED
+  WITHDRAWN
+}
+
+enum SessionStatus {
+  OPEN
+  FOLLOW_UP
+  COMPLETED
+  CLOSED
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum CredibilityRating {
+  LOW
+  MODERATE
+  HIGH
+}
+
+enum TimelinePhase {
+  BEFORE
+  DURING
+  AFTER
+  CUSTOM
+}
+
+enum IncidentSeverity {
+  MINOR
+  MAJOR
+}
+
+enum IncidentStatus {
+  NEW
+  UNDER_INVESTIGATION
+  SUPPORT_PLAN_ACTIVE
+  MONITORING
+  RESOLVED
+  CLOSED
+}
+
+enum InvolvementType {
+  PRIMARY
+  INVOLVED
+  VICTIM
+  RESPONDENT
+  WITNESS
+  OTHER
+}
+
+enum SignoffRole {
+  REPORTING_STAFF
+  COUNSELOR
+  LEADERSHIP
+}
+
+enum BehaviorType {
+  NEGATIVE
+  POSITIVE
+}
+
+enum ReportingPeriodType {
+  MONTHLY
+  TRI_MONTHLY
+  SEMESTER
+  YEAR
+}
+
+enum FollowUpPriority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum FollowUpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ContactMethod {
+  PHONE
+  EMAIL
+  MEETING
+  MESSAGING
+  OTHER
+}
+
+enum ReportType {
+  COUNSELING_CASE
+  INCIDENT_MAJOR
+  BEHAVIOR_LOG_MINOR
+  STUDENT_SUMMARY
+  BEHAVIOR_SUMMARY
+  SEMESTER_SUMMARY
+  CUSTOM
+}
+
+enum ReportStatus {
+  GENERATING
+  READY
+  FAILED
+  ARCHIVED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ARCHIVE
+  RESTORE
+  VIEW
+  DOWNLOAD
+  GENERATE_REPORT
+  LOGIN
+  LOGOUT
+}
+
+// =========================================================================
+// Identity & Config
+// =========================================================================
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  roleId       String    @map("role_id")
+  role         Role      @relation(fields: [roleId], references: [id])
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at")
+  deletedAt    DateTime? @map("deleted_at")
+  deletedBy    String?   @map("deleted_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  counselingSessions CounselingSession[]
+  reportedIncidents  Incident[]          @relation("IncidentReporter")
+  incidentSignoffs   IncidentSignoff[]
+  behaviorRecords    BehaviorRecord[]
+  followUpsCreated   FollowUp[]          @relation("FollowUpCreatedBy")
+  followUpsCompleted FollowUp[]          @relation("FollowUpCompletedBy")
+  parentContacts     ParentContact[]
+  documentsUploaded  Document[]
+  generatedReports   GeneratedReport[]
+  auditLogs          AuditLog[]
+  journalEntries     CounselorJournalEntry[] @relation("JournalEntryAuthor")
+  teachingPlans      TeachingPlan[]          @relation("TeachingPlanTeacher")
+
+  @@map("users")
+}
+
+model AcademicYear {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  startDate DateTime @map("start_date") @db.Date
+  endDate   DateTime @map("end_date") @db.Date
+  isCurrent Boolean  @default(false) @map("is_current")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  classes            Class[]
+  studentEnrollments StudentEnrollment[]
+  incidents          Incident[]
+  behaviorRecords    BehaviorRecord[]
+  reportingPeriods   ReportingPeriod[]
+  teachingPlans      TeachingPlan[]
+
+  @@map("academic_years")
+}
+
+model Grade {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  level     Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  classes            Class[]
+  studentEnrollments StudentEnrollment[]
+
+  @@map("grades")
+}
+
+model Class {
+  id              String       @id @default(uuid())
+  name            String
+  academicYearId  String       @map("academic_year_id")
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id])
+  gradeId         String       @map("grade_id")
+  grade           Grade        @relation(fields: [gradeId], references: [id])
+  homeroomTeacher String?      @map("homeroom_teacher")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  studentEnrollments StudentEnrollment[]
+  teachingPlans      TeachingPlan[]
+
+  @@unique([name, academicYearId])
+  @@map("classes")
+}
+
+model Student {
+  id          String        @id @default(uuid())
+  studentId   String        @unique @map("student_id")
+  firstName   String        @map("first_name")
+  middleName  String?       @map("middle_name")
+  lastName    String?       @map("last_name")
+  dateOfBirth DateTime?     @map("date_of_birth") @db.Date
+  gender      String?
+  status      StudentStatus @default(ACTIVE)
+  photoUrl    String?       @map("photo_url")
+  notes       String?
+  deletedAt   DateTime?     @map("deleted_at")
+  deletedBy   String?       @map("deleted_by")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  enrollments                 StudentEnrollment[]
+  counselingSessions          CounselingSession[]   @relation("AttendingStudentSessions")
+  counselingSessionsAsSubject CounselingSession[]   @relation("SubjectStudentSessions")
+  incidentsAsPrimary          Incident[]            @relation("IncidentPrimaryStudent")
+  incidentParticipations      IncidentParticipant[]
+  behaviorRecords             BehaviorRecord[]
+  followUps                   FollowUp[]
+  guardians                   StudentGuardian[]
+  parentContacts              ParentContact[]
+  documents                   Document[]
+  generatedReports            GeneratedReport[]
+
+  @@index([firstName, lastName])
+  @@index([status])
+  @@map("students")
+}
+
+model StudentEnrollment {
+  id             String           @id @default(uuid())
+  studentId      String           @map("student_id")
+  student        Student          @relation(fields: [studentId], references: [id])
+  academicYearId String           @map("academic_year_id")
+  academicYear   AcademicYear     @relation(fields: [academicYearId], references: [id])
+  classId        String           @map("class_id")
+  class          Class            @relation(fields: [classId], references: [id])
+  gradeId        String           @map("grade_id")
+  grade          Grade            @relation(fields: [gradeId], references: [id])
+  startDate      DateTime         @map("start_date") @db.Date
+  endDate        DateTime?        @map("end_date") @db.Date
+  status         EnrollmentStatus @default(ACTIVE)
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([studentId, endDate])
+  @@map("student_enrollments")
+}
+
+// =========================================================================
+// Counseling
+// =========================================================================
+
+model CounselingCategory {
+  id          String  @id @default(uuid())
+  code        String  @unique
+  name        String
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+
+  sessions CounselingSession[]
+
+  @@map("counseling_categories")
+}
+
+model CounselingSession {
+  id                   String             @id @default(uuid())
+  studentId            String             @map("student_id")
+  student              Student            @relation("AttendingStudentSessions", fields: [studentId], references: [id])
+  subjectStudentId     String?            @map("subject_student_id")
+  subjectStudent       Student?           @relation("SubjectStudentSessions", fields: [subjectStudentId], references: [id])
+  counselorId          String             @map("counselor_id")
+  counselor            User               @relation(fields: [counselorId], references: [id])
+  counselingCategoryId String             @map("counseling_category_id")
+  counselingCategory   CounselingCategory @relation(fields: [counselingCategoryId], references: [id])
+  sessionDate          DateTime           @map("session_date") @db.Date
+  startTime            String?            @map("start_time")
+  endTime              String?            @map("end_time")
+  purpose              String
+  riskLevel            RiskLevel          @default(LOW) @map("risk_level")
+  status               SessionStatus      @default(OPEN)
+  followUpRequired     Boolean            @default(false) @map("follow_up_required")
+  deletedAt            DateTime?          @map("deleted_at")
+  deletedBy            String?            @map("deleted_by")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  note              CounselingNote?
+  keyTakeaways      CounselingKeyTakeaway[]
+  timelineEvents    CounselingTimelineEvent[]
+  peerPerceptions   CounselingPeerPerception[]
+  groupObservations CounselingGroupObservation[]
+  objectiveFindings CounselingObjectiveFinding[]
+  riskAssessments   CounselingRiskAssessment[]
+  actionItems       CounselingActionItem[]
+  behaviorRecords   BehaviorRecord[]
+  followUps         FollowUp[]
+  parentContacts    ParentContact[]
+  documents         Document[]
+  generatedReports  GeneratedReport[]
+  journalEntryLinks CounselorJournalEntrySession[]
+
+  @@index([sessionDate])
+  @@index([studentId])
+  @@map("counseling_sessions")
+}
+
+model CounselingNote {
+  id                     String             @id @default(uuid())
+  counselingSessionId    String             @unique @map("counseling_session_id")
+  counselingSession      CounselingSession  @relation(fields: [counselingSessionId], references: [id])
+  presentationEngagement String?            @map("presentation_engagement")
+  emotionalAffect        String?            @map("emotional_affect")
+  credibilityObjectivity String?            @map("credibility_objectivity")
+  credibilityRating      CredibilityRating? @map("credibility_rating")
+  actionTaken            String?            @map("action_taken")
+  followUpNotes          String?            @map("follow_up_notes")
+  summaryContext         String?            @map("summary_context")
+  summaryPeerDynamic     String?            @map("summary_peer_dynamic")
+  summaryConclusion      String?            @map("summary_conclusion")
+  encryptedPayload       String?            @map("encrypted_payload")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  @@map("counseling_notes")
+}
+
+model RiskDimension {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+  isActive    Boolean @default(true) @map("is_active")
+  sortOrder   Int     @default(0) @map("sort_order")
+
+  riskAssessments CounselingRiskAssessment[]
+
+  @@map("risk_dimensions")
+}
+
+model CounselingKeyTakeaway {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  title               String
+  body                String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_key_takeaways")
+}
+
+model CounselingTimelineEvent {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  phase               TimelinePhase
+  title               String?
+  body                String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_timeline_events")
+}
+
+model CounselingPeerPerception {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  title               String
+  body                String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_peer_perceptions")
+}
+
+model CounselingGroupObservation {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  title               String
+  body                String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_group_observations")
+}
+
+model CounselingObjectiveFinding {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  title               String
+  body                String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_objective_findings")
+}
+
+model CounselingRiskAssessment {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  riskDimensionId     String            @map("risk_dimension_id")
+  riskDimension       RiskDimension     @relation(fields: [riskDimensionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  subjectLabel        String?           @map("subject_label")
+  riskLevel           RiskLevel         @map("risk_level")
+  justification       String
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_risk_assessments")
+}
+
+model CounselingActionItem {
+  id                  String            @id @default(uuid())
+  counselingSessionId String            @map("counseling_session_id")
+  counselingSession   CounselingSession @relation(fields: [counselingSessionId], references: [id])
+  sequenceOrder       Int               @map("sequence_order")
+  title               String
+  body                String
+  owner               String?
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  @@map("counseling_action_items")
+}
+
+// =========================================================================
+// Incidents
+// =========================================================================
+
+model IncidentCategory {
+  id        String  @id @default(uuid())
+  code      String  @unique
+  name      String
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  incidentsAsPrimary Incident[]
+  selections         IncidentCategorySelection[]
+
+  @@map("incident_categories")
+}
+
+model Incident {
+  id                       String           @id @default(uuid())
+  incidentNumber           String           @unique @map("incident_number")
+  primaryStudentId         String           @map("primary_student_id")
+  primaryStudent           Student          @relation("IncidentPrimaryStudent", fields: [primaryStudentId], references: [id])
+  reportedByUserId         String           @map("reported_by_user_id")
+  reportedBy               User             @relation("IncidentReporter", fields: [reportedByUserId], references: [id])
+  incidentCategoryId       String           @map("incident_category_id")
+  incidentCategory         IncidentCategory @relation(fields: [incidentCategoryId], references: [id])
+  academicYearId           String           @map("academic_year_id")
+  academicYear             AcademicYear     @relation(fields: [academicYearId], references: [id])
+  severity                 IncidentSeverity @default(MAJOR)
+  incidentDate             DateTime         @map("incident_date") @db.Date
+  incidentTime             String?          @map("incident_time")
+  location                 String?
+  status                   IncidentStatus   @default(NEW)
+  immediateAction          String?          @map("immediate_action")
+  parentContactRequired    Boolean          @default(false) @map("parent_contact_required")
+  leadershipNotified       Boolean          @default(false) @map("leadership_notified")
+  counselorOrAdminCalledAt DateTime?        @map("counselor_or_admin_called_at")
+  supportPlan              String?          @map("support_plan")
+  deletedAt                DateTime?        @map("deleted_at")
+  deletedBy                String?          @map("deleted_by")
+  createdAt                DateTime         @default(now()) @map("created_at")
+  updatedAt                DateTime         @updatedAt @map("updated_at")
+
+  narrative          IncidentNarrative?
+  response           IncidentResponse?
+  participants       IncidentParticipant[]
+  witnesses          IncidentWitness[]
+  categorySelections IncidentCategorySelection[]
+  signoffs           IncidentSignoff[]
+  behaviorRecords    BehaviorRecord[]
+  followUps          FollowUp[]
+  parentContacts     ParentContact[]
+  documents          Document[]
+  generatedReports   GeneratedReport[]
+  journalEntryLinks  CounselorJournalEntryIncident[]
+
+  @@index([incidentDate])
+  @@index([primaryStudentId])
+  @@index([status])
+  @@map("incidents")
+}
+
+model IncidentNarrative {
+  id                    String   @id @default(uuid())
+  incidentId            String   @unique @map("incident_id")
+  incident              Incident @relation(fields: [incidentId], references: [id])
+  antecedent            String
+  behavior              String
+  impact                String
+  additionalInformation String?  @map("additional_information")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("incident_narratives")
+}
+
+model IncidentParticipant {
+  id              String          @id @default(uuid())
+  incidentId      String          @map("incident_id")
+  incident        Incident        @relation(fields: [incidentId], references: [id])
+  studentId       String          @map("student_id")
+  student         Student         @relation(fields: [studentId], references: [id])
+  involvementType InvolvementType @map("involvement_type")
+  notes           String?
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  @@map("incident_participants")
+}
+
+model IncidentWitness {
+  id         String   @id @default(uuid())
+  incidentId String   @map("incident_id")
+  incident   Incident @relation(fields: [incidentId], references: [id])
+  name       String
+  role       String?
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("incident_witnesses")
+}
+
+model IncidentResponse {
+  id                            String   @id @default(uuid())
+  incidentId                    String   @unique @map("incident_id")
+  incident                      Incident @relation(fields: [incidentId], references: [id])
+  studentEscortedToOffice       Boolean  @default(false) @map("student_escorted_to_office")
+  classroomEvacuated            Boolean  @default(false) @map("classroom_evacuated")
+  firstAidOrNurseRequested      Boolean  @default(false) @map("first_aid_or_nurse_requested")
+  onsiteDeescalationByCounselor Boolean  @default(false) @map("onsite_deescalation_by_counselor")
+  additionalAction              String?  @map("additional_action")
+  createdAt                     DateTime @default(now()) @map("created_at")
+  updatedAt                     DateTime @updatedAt @map("updated_at")
+
+  @@map("incident_responses")
+}
+
+model IncidentCategorySelection {
+  id                 String           @id @default(uuid())
+  incidentId         String           @map("incident_id")
+  incident           Incident         @relation(fields: [incidentId], references: [id])
+  incidentCategoryId String           @map("incident_category_id")
+  incidentCategory   IncidentCategory @relation(fields: [incidentCategoryId], references: [id])
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  @@unique([incidentId, incidentCategoryId])
+  @@map("incident_category_selections")
+}
+
+model IncidentSignoff {
+  id         String      @id @default(uuid())
+  incidentId String      @map("incident_id")
+  incident   Incident    @relation(fields: [incidentId], references: [id])
+  role       SignoffRole
+  userId     String?     @map("user_id")
+  user       User?       @relation(fields: [userId], references: [id])
+  signerName String?     @map("signer_name")
+  signedAt   DateTime?   @map("signed_at")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@map("incident_signoffs")
+}
+
+// =========================================================================
+// Behavior
+// =========================================================================
+
+model BehaviorCategory {
+  id       String       @id @default(uuid())
+  code     String?      @unique
+  name     String
+  type     BehaviorType
+  isActive Boolean      @default(true) @map("is_active")
+
+  recordSelections BehaviorRecordCategory[]
+
+  @@map("behavior_categories")
+}
+
+model ActionCode {
+  id        String  @id @default(uuid())
+  code      String? @unique
+  name      String
+  isActive  Boolean @default(true) @map("is_active")
+  sortOrder Int     @default(0) @map("sort_order")
+
+  recordSelections BehaviorRecordAction[]
+
+  @@map("action_codes")
+}
+
+// Multi-select junction tables — a single quick-log entry can carry more
+// than one behavior code and more than one action taken (e.g. "Disruption +
+// Language" tagged with "Warning + Seat change" in one tick-and-go entry).
+model BehaviorRecordCategory {
+  id                 String           @id @default(uuid())
+  behaviorRecordId   String           @map("behavior_record_id")
+  behaviorRecord     BehaviorRecord   @relation(fields: [behaviorRecordId], references: [id], onDelete: Cascade)
+  behaviorCategoryId String           @map("behavior_category_id")
+  behaviorCategory   BehaviorCategory @relation(fields: [behaviorCategoryId], references: [id])
+  createdAt          DateTime         @default(now()) @map("created_at")
+
+  @@unique([behaviorRecordId, behaviorCategoryId])
+  @@index([behaviorCategoryId])
+  @@map("behavior_record_categories")
+}
+
+model BehaviorRecordAction {
+  id               String         @id @default(uuid())
+  behaviorRecordId String         @map("behavior_record_id")
+  behaviorRecord   BehaviorRecord @relation(fields: [behaviorRecordId], references: [id], onDelete: Cascade)
+  actionCodeId     String         @map("action_code_id")
+  actionCode       ActionCode     @relation(fields: [actionCodeId], references: [id])
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  @@unique([behaviorRecordId, actionCodeId])
+  @@index([actionCodeId])
+  @@map("behavior_record_actions")
+}
+
+model ReportingPeriod {
+  id             String              @id @default(uuid())
+  academicYearId String              @map("academic_year_id")
+  academicYear   AcademicYear        @relation(fields: [academicYearId], references: [id])
+  name           String
+  periodType     ReportingPeriodType @map("period_type")
+  startDate      DateTime            @map("start_date") @db.Date
+  endDate        DateTime            @map("end_date") @db.Date
+
+  behaviorRecords BehaviorRecord[]
+
+  @@map("reporting_periods")
+}
+
+model BehaviorRecord {
+  id                  String                   @id @default(uuid())
+  studentId           String                   @map("student_id")
+  student             Student                  @relation(fields: [studentId], references: [id])
+  categories          BehaviorRecordCategory[]
+  actions             BehaviorRecordAction[]
+  incidentId          String?                  @map("incident_id")
+  incident            Incident?                @relation(fields: [incidentId], references: [id])
+  counselingSessionId String?                  @map("counseling_session_id")
+  counselingSession   CounselingSession?       @relation(fields: [counselingSessionId], references: [id])
+  recordedByUserId    String                   @map("recorded_by_user_id")
+  recordedBy          User                     @relation(fields: [recordedByUserId], references: [id])
+  recordDate          DateTime                 @map("record_date") @db.Date
+  recordTime          String?                  @map("record_time")
+  description         String?
+  // Free text entered in the "Other, please specify" field on the quick-log
+  // form — kept as plain text on the record itself rather than becoming a
+  // new reusable BehaviorCategory/ActionCode row, so one-off custom entries
+  // never pollute the Behavior code / Action taken pick lists.
+  otherBehaviorText   String?                  @map("other_behavior_text")
+  otherActionText     String?                  @map("other_action_text")
+  classroomReference  String?                  @map("classroom_reference")
+  academicYearId      String                   @map("academic_year_id")
+  academicYear        AcademicYear             @relation(fields: [academicYearId], references: [id])
+  reportingPeriodId   String?                  @map("reporting_period_id")
+  reportingPeriod     ReportingPeriod?         @relation(fields: [reportingPeriodId], references: [id])
+  deletedAt           DateTime?                @map("deleted_at")
+  deletedBy           String?                  @map("deleted_by")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+
+  journalEntryLinks CounselorJournalEntryBehaviorRecord[]
+
+  @@index([studentId, recordDate])
+  @@index([recordDate])
+  @@map("behavior_records")
+}
+
+// =========================================================================
+// Follow-ups & Guardians
+// =========================================================================
+
+model FollowUp {
+  id                     String             @id @default(uuid())
+  studentId              String             @map("student_id")
+  student                Student            @relation(fields: [studentId], references: [id])
+  createdByUserId        String             @map("created_by_user_id")
+  createdByUser          User               @relation("FollowUpCreatedBy", fields: [createdByUserId], references: [id])
+  relatedSessionId       String?            @map("related_session_id")
+  relatedSession         CounselingSession? @relation(fields: [relatedSessionId], references: [id])
+  relatedIncidentId      String?            @map("related_incident_id")
+  relatedIncident        Incident?          @relation(fields: [relatedIncidentId], references: [id])
+  relatedParentContactId String?            @map("related_parent_contact_id")
+  relatedParentContact   ParentContact?     @relation(fields: [relatedParentContactId], references: [id])
+  title                  String
+  description            String?
+  priority               FollowUpPriority   @default(NORMAL)
+  dueDate                DateTime           @map("due_date") @db.Date
+  status                 FollowUpStatus     @default(PENDING)
+  completedAt            DateTime?          @map("completed_at")
+  completedByUserId      String?            @map("completed_by_user_id")
+  completedByUser        User?              @relation("FollowUpCompletedBy", fields: [completedByUserId], references: [id])
+  completedNotes         String?            @map("completed_notes")
+  deletedAt              DateTime?          @map("deleted_at")
+  deletedBy              String?            @map("deleted_by")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  @@index([dueDate, status])
+  @@index([studentId])
+  @@map("follow_ups")
+}
+
+// A counselor's private log of their own activity/reflections — never about
+// a student, and never visible to anyone but the author (enforced at the
+// repository/service layer, not just in the UI). It may optionally point at
+// counseling sessions, incidents, and minor behavior logs that the same
+// counselor already owns (as counselor/reporter/recorder), purely as
+// personal cross-references.
+model CounselorJournalEntry {
+  id           String    @id @default(uuid())
+  authorUserId String    @map("author_user_id")
+  author       User      @relation("JournalEntryAuthor", fields: [authorUserId], references: [id])
+  entryDate    DateTime  @map("entry_date") @db.Date
+  entryTime    String?   @map("entry_time")
+  title        String
+  note         String
+  deletedAt    DateTime? @map("deleted_at")
+  deletedBy    String?   @map("deleted_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  linkedSessions        CounselorJournalEntrySession[]
+  linkedIncidents       CounselorJournalEntryIncident[]
+  linkedBehaviorRecords CounselorJournalEntryBehaviorRecord[]
+
+  @@index([authorUserId, deletedAt, entryDate])
+  @@map("counselor_journal_entries")
+}
+
+// Optional many-to-many link from a journal entry to a counseling session
+// the same counselor ran. Ownership of the session is re-checked at the
+// service layer on every write, not just assumed from this row existing.
+model CounselorJournalEntrySession {
+  id                  String                @id @default(uuid())
+  journalEntryId      String                @map("journal_entry_id")
+  journalEntry        CounselorJournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  counselingSessionId String                @map("counseling_session_id")
+  counselingSession   CounselingSession     @relation(fields: [counselingSessionId], references: [id])
+  createdAt           DateTime              @default(now()) @map("created_at")
+
+  @@unique([journalEntryId, counselingSessionId])
+  @@index([counselingSessionId])
+  @@map("counselor_journal_entry_sessions")
+}
+
+// Optional many-to-many link from a journal entry to an incident the same
+// counselor reported. See CounselorJournalEntrySession for the ownership note.
+model CounselorJournalEntryIncident {
+  id             String                @id @default(uuid())
+  journalEntryId String                @map("journal_entry_id")
+  journalEntry   CounselorJournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  incidentId     String                @map("incident_id")
+  incident       Incident              @relation(fields: [incidentId], references: [id])
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  @@unique([journalEntryId, incidentId])
+  @@index([incidentId])
+  @@map("counselor_journal_entry_incidents")
+}
+
+// Optional many-to-many link from a journal entry to a minor behavior log
+// (a BehaviorRecord with no incidentId) the same counselor recorded. See
+// CounselorJournalEntrySession for the ownership note.
+model CounselorJournalEntryBehaviorRecord {
+  id               String                @id @default(uuid())
+  journalEntryId   String                @map("journal_entry_id")
+  journalEntry     CounselorJournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  behaviorRecordId String                @map("behavior_record_id")
+  behaviorRecord   BehaviorRecord        @relation(fields: [behaviorRecordId], references: [id])
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  @@unique([journalEntryId, behaviorRecordId])
+  @@index([behaviorRecordId])
+  @@map("counselor_journal_entry_behavior_records")
+}
+
+model Guardian {
+  id           String   @id @default(uuid())
+  fullName     String   @map("full_name")
+  relationship String?
+  phone        String?
+  email        String?
+  address      String?
+  occupation   String?
+  deletedAt    DateTime? @map("deleted_at")
+  deletedBy    String?   @map("deleted_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  students       StudentGuardian[]
+  parentContacts ParentContact[]
+
+  @@map("guardians")
+}
+
+model StudentGuardian {
+  id                 String   @id @default(uuid())
+  studentId          String   @map("student_id")
+  student            Student  @relation(fields: [studentId], references: [id])
+  guardianId         String   @map("guardian_id")
+  guardian           Guardian @relation(fields: [guardianId], references: [id])
+  isPrimaryContact   Boolean  @default(false) @map("is_primary_contact")
+  isEmergencyContact Boolean  @default(false) @map("is_emergency_contact")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([studentId, guardianId])
+  @@map("student_guardians")
+}
+
+model ParentContact {
+  id                String             @id @default(uuid())
+  studentId         String             @map("student_id")
+  student           Student            @relation(fields: [studentId], references: [id])
+  guardianId        String             @map("guardian_id")
+  guardian          Guardian           @relation(fields: [guardianId], references: [id])
+  counselorId       String             @map("counselor_id")
+  counselor         User               @relation(fields: [counselorId], references: [id])
+  relatedIncidentId String?            @map("related_incident_id")
+  relatedIncident   Incident?          @relation(fields: [relatedIncidentId], references: [id])
+  relatedSessionId  String?            @map("related_session_id")
+  relatedSession    CounselingSession? @relation(fields: [relatedSessionId], references: [id])
+  method            ContactMethod
+  contactDate       DateTime           @map("contact_date") @db.Date
+  reason            String
+  summary           String
+  outcome           String?
+  followUpRequired  Boolean            @default(false) @map("follow_up_required")
+  deletedAt         DateTime?          @map("deleted_at")
+  deletedBy         String?            @map("deleted_by")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  followUps FollowUp[]
+
+  @@index([studentId, deletedAt, contactDate])
+  @@index([relatedIncidentId])
+  @@map("parent_contacts")
+}
+
+// =========================================================================
+// Documents & Reports
+// =========================================================================
+
+model DocumentCategory {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+
+  documents Document[]
+
+  @@map("document_categories")
+}
+
+model Document {
+  id                 String             @id @default(uuid())
+  studentId          String?            @map("student_id")
+  student            Student?           @relation(fields: [studentId], references: [id])
+  documentCategoryId String             @map("document_category_id")
+  documentCategory   DocumentCategory   @relation(fields: [documentCategoryId], references: [id])
+  title              String
+  fileName           String             @map("file_name")
+  storageKey         String             @map("storage_key")
+  mimeType           String             @map("mime_type")
+  fileSize           Int                @map("file_size")
+  uploadedByUserId   String             @map("uploaded_by_user_id")
+  uploadedBy         User               @relation(fields: [uploadedByUserId], references: [id])
+  relatedIncidentId  String?            @map("related_incident_id")
+  relatedIncident    Incident?          @relation(fields: [relatedIncidentId], references: [id])
+  relatedSessionId   String?            @map("related_session_id")
+  relatedSession     CounselingSession? @relation(fields: [relatedSessionId], references: [id])
+  generatedReportId  String?            @map("generated_report_id")
+  generatedReport    GeneratedReport?   @relation(fields: [generatedReportId], references: [id])
+  teachingPlanWeekId String?            @map("teaching_plan_week_id")
+  teachingPlanWeek   TeachingPlanWeek?  @relation(fields: [teachingPlanWeekId], references: [id])
+  deletedAt          DateTime?          @map("deleted_at")
+  deletedBy          String?            @map("deleted_by")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@index([studentId])
+  @@index([documentCategoryId])
+  @@index([teachingPlanWeekId])
+  @@index([deletedAt, createdAt])
+  @@map("documents")
+}
+
+model ReportTemplate {
+  id                 String     @id @default(uuid())
+  name               String
+  description        String?
+  reportType         ReportType @map("report_type")
+  templateVersion    Int        @default(1) @map("template_version")
+  templateDefinition Json       @map("template_definition")
+  isActive           Boolean    @default(true) @map("is_active")
+  createdAt          DateTime   @default(now()) @map("created_at")
+  updatedAt          DateTime   @updatedAt @map("updated_at")
+
+  generatedReports GeneratedReport[]
+
+  @@map("report_templates")
+}
+
+model GeneratedReport {
+  id                     String             @id @default(uuid())
+  reportNumber           String             @unique @map("report_number")
+  reportTemplateId       String             @map("report_template_id")
+  reportTemplate         ReportTemplate     @relation(fields: [reportTemplateId], references: [id])
+  reportType             ReportType         @map("report_type")
+  studentId              String?            @map("student_id")
+  student                Student?           @relation(fields: [studentId], references: [id])
+  generatedByUserId      String             @map("generated_by_user_id")
+  generatedByUser        User               @relation(fields: [generatedByUserId], references: [id])
+  relatedIncidentId      String?            @map("related_incident_id")
+  relatedIncident        Incident?          @relation(fields: [relatedIncidentId], references: [id])
+  relatedSessionId       String?            @map("related_session_id")
+  relatedSession         CounselingSession? @relation(fields: [relatedSessionId], references: [id])
+  dateFrom               DateTime?          @map("date_from") @db.Date
+  dateTo                 DateTime?          @map("date_to") @db.Date
+  fileName               String?            @map("file_name")
+  storageKey             String?            @map("storage_key")
+  generatedAt            DateTime?          @map("generated_at")
+  templateVersion        Int                @map("template_version")
+  status                 ReportStatus       @default(GENERATING)
+  securityClassification String?            @map("security_classification")
+  designatedTo           String?            @map("designated_to")
+  documentTitle          String?            @map("document_title")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+
+  snapshot  ReportDataSnapshot?
+  documents Document[]
+
+  @@index([reportType, status])
+  @@index([createdAt])
+  @@map("generated_reports")
+}
+
+model ReportDataSnapshot {
+  id                String          @id @default(uuid())
+  generatedReportId String          @unique @map("generated_report_id")
+  generatedReport   GeneratedReport @relation(fields: [generatedReportId], references: [id])
+  snapshotData      Json            @map("snapshot_data")
+  createdAt         DateTime        @default(now()) @map("created_at")
+
+  @@map("report_data_snapshots")
+}
+
+// =========================================================================
+// System
+// =========================================================================
+
+model AuditLog {
+  id         String      @id @default(uuid())
+  userId     String?     @map("user_id")
+  user       User?       @relation(fields: [userId], references: [id])
+  action     AuditAction
+  entityType String      @map("entity_type")
+  entityId   String?     @map("entity_id")
+  metadata   Json?
+  ipAddress  String?     @map("ip_address")
+  createdAt  DateTime    @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// =========================================================================
+// Teaching Plans
+// =========================================================================
+
+model Subject {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  teachingPlans TeachingPlan[]
+
+  @@map("subjects")
+}
+
+model TeachingPlan {
+  id             String       @id @default(uuid())
+  academicYearId String       @map("academic_year_id")
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id])
+  semester       Int
+  classId        String       @map("class_id")
+  class          Class        @relation(fields: [classId], references: [id])
+  subjectId      String       @map("subject_id")
+  subject        Subject      @relation(fields: [subjectId], references: [id])
+  teacherId      String       @map("teacher_id")
+  teacher        User         @relation("TeachingPlanTeacher", fields: [teacherId], references: [id])
+  title          String?
+  description    String?
+  weekCount      Int          @default(18) @map("week_count")
+  deletedAt      DateTime?    @map("deleted_at")
+  deletedBy      String?      @map("deleted_by")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  weeks TeachingPlanWeek[]
+
+  @@unique([academicYearId, semester, classId, subjectId, teacherId])
+  @@index([deletedAt, createdAt])
+  @@map("teaching_plans")
+}
+
+model TeachingPlanWeek {
+  id                String       @id @default(uuid())
+  teachingPlanId    String       @map("teaching_plan_id")
+  teachingPlan      TeachingPlan @relation(fields: [teachingPlanId], references: [id], onDelete: Cascade)
+  weekNumber        Int          @map("week_number")
+  topic             String?
+  learningObjective String?      @map("learning_objective")
+  detailPlan        String?      @map("detail_plan")
+  startDate         DateTime?    @map("start_date") @db.Date
+  endDate           DateTime?    @map("end_date") @db.Date
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  lessons   TeachingPlanLesson[]
+  materials Document[]
+
+  @@unique([teachingPlanId, weekNumber])
+  @@map("teaching_plan_weeks")
+}
+
+model TeachingPlanLesson {
+  id                 String           @id @default(uuid())
+  teachingPlanWeekId String           @map("teaching_plan_week_id")
+  week               TeachingPlanWeek @relation(fields: [teachingPlanWeekId], references: [id], onDelete: Cascade)
+  sequenceOrder      Int              @map("sequence_order")
+  title              String
+  description        String?
+  content            String?
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@index([teachingPlanWeekId])
+  @@map("teaching_plan_lessons")
+}

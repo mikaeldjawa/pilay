@@ -1,0 +1,270 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-status-serious: var(--status-serious);
+  --color-status-warning: var(--status-warning);
+  /* Blue / Marigold — extra semantic colors used by badges & the accent CTA */
+  --color-marigold: var(--marigold);
+  --color-marigold-foreground: var(--marigold-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Soft, friendly elevation — the Blue / Marigold shadow scale */
+  --shadow-soft-sm: 0 2px 6px -1px rgb(22 32 79 / 0.07);
+  --shadow-soft-md: 0 8px 20px -6px rgb(22 32 79 / 0.1);
+  --shadow-soft-lg: 0 18px 40px -12px rgb(22 32 79 / 0.16);
+}
+
+/* =====================================================================
+   Blue / Marigold design system
+   Blue carries identity & navigation; marigold carries ONE action per
+   screen. Everything else stays outline / ghost. See docs/Design System
+   Preview.md for the source palette and contrast pairs.
+   ===================================================================== */
+:root {
+  /* ── raw ramps ─────────────────────────────────────────────── */
+  --blue-50: #eef1ff;
+  --blue-100: #dce2ff;
+  --blue-200: #bac5ff;
+  --blue-300: #91a2fa;
+  --blue-400: #6a7df0;
+  --blue-500: #4459e0;
+  --blue-600: #3344c9;
+  --blue-700: #2835a3;
+  --blue-800: #1e2879;
+  --blue-900: #151c55;
+  --blue-950: #0d1235;
+  --yellow-50: #fff8e4;
+  --yellow-100: #ffefc0;
+  --yellow-200: #ffe28c;
+  --yellow-300: #ffd35c;
+  --yellow-400: #ffc531;
+  --yellow-500: #f5b015;
+  --yellow-600: #d9930a;
+  --yellow-700: #a96f08;
+
+  --paper: #f6f5f1;
+  --line: #e7e5de;
+  --ink: #16204f;
+  --ink-muted: #6b6f80;
+
+  /* ── semantic tokens ───────────────────────────────────────── */
+  --background: var(--paper);
+  --foreground: var(--ink);
+
+  --card: #ffffff;
+  --card-foreground: var(--ink);
+
+  --popover: #ffffff;
+  --popover-foreground: var(--ink);
+
+  /* Primary — blue 600 */
+  --primary: var(--blue-600);
+  --primary-foreground: #ffffff;
+
+  /* Accent CTA — marigold. Navy text only, never white. */
+  --marigold: var(--yellow-400);
+  --marigold-foreground: var(--blue-900);
+
+  --secondary: var(--blue-50);
+  --secondary-foreground: var(--blue-700);
+
+  --muted: #efede7;
+  --muted-foreground: var(--ink-muted);
+
+  --accent: var(--blue-50);
+  --accent-foreground: var(--blue-700);
+
+  --destructive: #d93a3f;
+  --destructive-foreground: #ffffff;
+
+  --success: #128761;
+  --success-foreground: #ffffff;
+  --warning: #e07b12;
+  --warning-foreground: #ffffff;
+
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--blue-400);
+
+  /* Charts — anchored in the blue/marigold family */
+  --chart-1: var(--blue-600);
+  --chart-2: var(--yellow-400);
+  --chart-3: #128761;
+  --chart-4: var(--blue-300);
+  --chart-5: #7c5cd6;
+
+  /* Status — severity fields. Marigold-adjacent warning, red for critical. */
+  --status-warning: var(--yellow-500);
+  --status-serious: #e07b12;
+
+  --radius: 0.75rem;
+
+  /* ── sidebar: the solid blue rail (same in light & dark) ────── */
+  --sidebar: var(--blue-700);
+  --sidebar-foreground: #c7cff8;
+
+  --sidebar-primary: var(--yellow-400);
+  --sidebar-primary-foreground: var(--blue-900);
+
+  --sidebar-accent: rgb(255 255 255 / 0.12);
+  --sidebar-accent-foreground: #ffffff;
+
+  --sidebar-border: rgb(255 255 255 / 0.14);
+  --sidebar-ring: var(--yellow-400);
+}
+
+.dark {
+  --background: var(--blue-950);
+  --foreground: var(--blue-50);
+
+  --card: #141a4a;
+  --card-foreground: var(--blue-50);
+
+  --popover: #141a4a;
+  --popover-foreground: var(--blue-50);
+
+  --primary: var(--blue-400);
+  --primary-foreground: var(--blue-950);
+
+  --marigold: var(--yellow-400);
+  --marigold-foreground: var(--blue-900);
+
+  --secondary: var(--blue-800);
+  --secondary-foreground: var(--blue-100);
+
+  --muted: #1b2464;
+  --muted-foreground: #9aa6e0;
+
+  --accent: var(--blue-800);
+  --accent-foreground: var(--blue-100);
+
+  --destructive: #f0555a;
+  --destructive-foreground: #ffffff;
+
+  --success: #2fb488;
+  --success-foreground: #05130d;
+  --warning: #f5a52a;
+  --warning-foreground: #2a1802;
+
+  --border: rgb(255 255 255 / 0.1);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: var(--blue-400);
+
+  --chart-1: var(--blue-400);
+  --chart-2: var(--yellow-400);
+  --chart-3: #2fb488;
+  --chart-4: var(--blue-200);
+  --chart-5: #b39bf2;
+
+  --status-warning: var(--yellow-400);
+  --status-serious: #f5a52a;
+
+  /* Rail stays blue; deepen a touch so it reads as its own surface. */
+  --sidebar: var(--blue-900);
+  --sidebar-foreground: #c7cff8;
+
+  --sidebar-primary: var(--yellow-400);
+  --sidebar-primary-foreground: var(--blue-900);
+
+  --sidebar-accent: rgb(255 255 255 / 0.1);
+  --sidebar-accent-foreground: #ffffff;
+
+  --sidebar-border: rgb(255 255 255 / 0.12);
+  --sidebar-ring: var(--yellow-400);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-variant-numeric: tabular-nums;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* =====================================================================
+   Sidebar rail — blue gradient + marigold active marker
+   ===================================================================== */
+@layer components {
+  /* The solid blue gradient rail. */
+  [data-slot="sidebar-inner"] {
+    background: linear-gradient(
+      178deg,
+      var(--blue-600) 0%,
+      var(--blue-800) 100%
+    );
+  }
+  .dark [data-slot="sidebar-inner"] {
+    background: linear-gradient(
+      178deg,
+      var(--blue-800) 0%,
+      var(--blue-950) 100%
+    );
+  }
+
+  /* Marigold left-edge marker on the active nav item. */
+  [data-slot="sidebar-menu-button"][data-active="true"] {
+    position: relative;
+  }
+  [data-slot="sidebar-menu-button"][data-active="true"]::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 8px;
+    bottom: 8px;
+    width: 4px;
+    border-radius: 0 4px 4px 0;
+    background: var(--yellow-400);
+  }
+}
